@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋</title>
+    <style>
+        /* 直接在HTML中包含样式，确保样式正确加载 */
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        .settings {
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select {
+            padding: 5px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        .game-info {
+            margin: 20px 0;
+        }
+
+        #board {
+            background-color: #DEB887;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        button {
+            margin-left: 20px;
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>五子棋</h1>
+        <div class="settings">
+            <div class="setting-item">
+                <label for="boardSize">棋盘大小:</label>
+                <select id="boardSize">
+                    <option value="15">15 x 15</option>
+                    <option value="17">17 x 17</option>
+                    <option value="19">19 x 19</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label for="cellSize">格子大小:</label>
+                <select id="cellSize">
+                    <option value="30">小</option>
+                    <option value="40" selected>中</option>
+                    <option value="50">大</option>
+                </select>
+            </div>
+        </div>
+        <div class="game-info">
+            <span id="current-player">当前玩家：黑子</span>
+            <button id="restart">重新开始</button>
+        </div>
+        <canvas id="board"></canvas>
+    </div>
+    <script>
+        // 直接在HTML中包含JavaScript代码，确保正确加载
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const boardSizeSelect = document.getElementById('boardSize');
+        const cellSizeSelect = document.getElementById('cellSize');
+
+        let GRID_SIZE = parseInt(boardSizeSelect.value);
+        let CELL_SIZE = parseInt(cellSizeSelect.value);
+        let PIECE_RADIUS = Math.floor(CELL_SIZE * 0.45);
+
+        let currentPlayer = 1;
+        let gameBoard = [];
+        let gameOver = false;
+
+        // 初始化棋盘数组
+        function initializeBoard() {
+            gameBoard = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
+        }
+
+        // 调整画布大小
+        function resizeCanvas() {
+            const boardPixelSize = (GRID_SIZE + 1) * CELL_SIZE;
+            canvas.width = boardPixelSize;
+            canvas.height = boardPixelSize;
+        }
+
+        // 绘制棋盘
+        function drawBoard() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制棋盘背景
+            ctx.fillStyle = '#DEB887';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制棋盘网格
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            
+            // 绘制横线和竖线
+            for (let i = 0; i < GRID_SIZE; i++) {
+                // 横线
+                ctx.beginPath();
+                ctx.moveTo(CELL_SIZE, (i + 1) * CELL_SIZE);
+                ctx.lineTo(CELL_SIZE * GRID_SIZE, (i + 1) * CELL_SIZE);
+                ctx.stroke();
+                
+                // 竖线
+                ctx.beginPath();
+                ctx.moveTo((i + 1) * CELL_SIZE, CELL_SIZE);
+                ctx.lineTo((i + 1) * CELL_SIZE, CELL_SIZE * GRID_SIZE);
+                ctx.stroke();
+            }
+
+            // 重绘所有已放置的棋子
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    if (gameBoard[i][j] !== 0) {
+                        drawPiece(i, j, gameBoard[i][j]);
+                    }
+                }
+            }
+        }
+
+        // 绘制棋子
+        function drawPiece(row, col, player) {
+            const x = (col + 1) * CELL_SIZE;
+            const y = (row + 1) * CELL_SIZE;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, PIECE_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = player === 1 ? '#000' : '#fff';
+            ctx.fill();
+            
+            if (player === 2) {
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // 检查是否获胜
+        function checkWin(row, col) {
+            const directions = [
+                [[0, 1], [0, -1]],
+                [[1, 0], [-1, 0]],
+                [[1, 1], [-1, -1]],
+                [[1, -1], [-1, 1]]
+            ];
+            
+            for (const direction of directions) {
+                let count = 1;
+                for (const [dx, dy] of direction) {
+                    let r = row + dx;
+                    let c = col + dy;
+                    while (
+                        r >= 0 && r < GRID_SIZE &&
+                        c >= 0 && c < GRID_SIZE &&
+                        gameBoard[r][c] === currentPlayer
+                    ) {
+                        count++;
+                        r += dx;
+                        c += dy;
+                    }
+                }
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        // 处理棋盘点击
+        canvas.addEventListener('click', (e) => {
+            if (gameOver) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const col = Math.round(x / CELL_SIZE - 1);
+            const row = Math.round(y / CELL_SIZE - 1);
+            
+            if (
+                row >= 0 && row < GRID_SIZE &&
+                col >= 0 && col < GRID_SIZE &&
+                gameBoard[row][col] === 0
+            ) {
+                gameBoard[row][col] = currentPlayer;
+                drawPiece(row, col, currentPlayer);
+                
+                if (checkWin(row, col)) {
+                    alert(`${currentPlayer === 1 ? '黑子' : '白子'}获胜！`);
+                    gameOver = true;
+                    return;
+                }
+                
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+                document.getElementById('current-player').textContent = 
+                    `当前玩家：${currentPlayer === 1 ? '黑子' : '白子'}`;
+            }
+        });
+
+        // 重新开始游戏
+        function restartGame() {
+            initializeBoard();
+            currentPlayer = 1;
+            gameOver = false;
+            document.getElementById('current-player').textContent = '当前玩家：黑子';
+            drawBoard();
+        }
+
+        // 处理棋盘大小变化
+        boardSizeSelect.addEventListener('change', () => {
+            GRID_SIZE = parseInt(boardSizeSelect.value);
+            resizeCanvas();
+            restartGame();
+        });
+
+        // 处理格子大小变化
+        cellSizeSelect.addEventListener('change', () => {
+            CELL_SIZE = parseInt(cellSizeSelect.value);
+            PIECE_RADIUS = Math.floor(CELL_SIZE * 0.45);
+            resizeCanvas();
+            restartGame();
+        });
+
+        // 重新开始按钮事件
+        document.getElementById('restart').addEventListener('click', restartGame);
+
+        // 初始化游戏
+        resizeCanvas();
+        initializeBoard();
+        drawBoard();
+    </script>
+</body>
+</html>
